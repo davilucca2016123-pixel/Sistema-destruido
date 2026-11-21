@@ -1,0 +1,24 @@
+{
+  "name": "sistema-destruido",
+  "version": "5.0.0",
+  "description": "Kiosk de susto - prank screen com senha de desbloqueio",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.davichukitos.sistemadestruido",
+    "productName": "Sistema Destruido",
+    "win": {
+      "target": "portable"
+    }
+  },
+  "author": "Davi Chukitos",
+  "license": "UNLICENSED",
+  "private": true
+}
