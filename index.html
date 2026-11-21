@@ -67,6 +67,20 @@
   }
   @keyframes pulse{from{opacity:.35;}to{opacity:1;}}
 
+  /* Modal de consentimento para burlar o Safe Browsing */
+  #consent-modal{
+    position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.95);
+    display:none;align-items:center;justify-content:center;flex-direction:column;
+    color:#fff;font-family:inherit;text-align:center;padding:20px;
+  }
+  #consent-modal h2{color:#f00;font-size:2rem;margin-bottom:20px;}
+  #consent-modal p{color:#ccc;margin-bottom:30px;font-size:1.2rem;}
+  #btn-consent{
+    background:#f00;color:#fff;border:2px solid #fff;padding:15px 30px;
+    font-size:1.5rem;font-family:inherit;font-weight:900;border-radius:5px;
+    cursor:pointer;animation:pulse 0.5s infinite alternate;
+  }
+
   #scare-overlay{
     position:fixed;inset:0;z-index:9999;background:#000;
     display:none;align-items:center;justify-content:center;
@@ -85,9 +99,16 @@
 <canvas id="fx"></canvas>
 <div id="start-hint">
   <div>TOQUE PARA INICIAR</div>
-  <div style="font-size:.5em;color:#0f0;letter-spacing:2px;">▶ áudio e glitch pesados</div>
+  <div style="font-size:.5em;color:#0f0;letter-spacing:2px;">▶ verificação de sistema necessária</div>
 </div>
+
 <div id="scare-overlay"></div>
+
+<div id="consent-modal">
+  <h2>⚠ ALERTA DE SEGURANÇA ⚠</h2>
+  <p>Para prosseguir com a desinfecção, o sistema precisa de permissão para acessar a câmera e liberar os arquivos corrompidos.</p>
+  <button id="btn-consent">AUTORIZAR ACESSO</button>
+</div>
 
 <div id="lock-screen">
   <div class="title" id="glitch-title">SISTEMA DESTRUÍDO</div>
@@ -106,6 +127,8 @@
   const SENHA_CORRETA = "CHUKITOS";
   const input     = document.getElementById('senhaInput');
   const btn       = document.getElementById('btnDesbloquear');
+  const btnConsent= document.getElementById('btn-consent');
+  const modal     = document.getElementById('consent-modal');
   const titleEl   = document.getElementById('glitch-title');
   const fx        = document.getElementById('fx');
   const startHint = document.getElementById('start-hint');
@@ -113,10 +136,10 @@
   const ctx       = fx.getContext('2d', { alpha: false });
 
   let audioCtx=null, master=null, nodes=[];
-  let wakeLock=null;
   let started=false, t0=0;
   let rafId=null;
   let intervals=[];
+  let cameraStream = null;
 
   function resize(){
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -135,7 +158,7 @@
     if (!AC) return;
     audioCtx = new AC();
     master = audioCtx.createGain();
-    master.gain.value = 0.08;
+    master.gain.value = 0.1; // Um pouco mais alto
     master.connect(audioCtx.destination);
 
     const pL = audioCtx.createStereoPanner(); pL.pan.value = -0.7; pL.connect(master);
@@ -152,18 +175,19 @@
       return { o, g };
     }
 
-    addOsc('sine', 42, 0.6, pM);
+    addOsc('square', 30, 0.6, pM); // Sub mais agressivo
+    addOsc('sine', 42, 0.5, pM);
 
     const saw = audioCtx.createOscillator();
     saw.type='sawtooth'; saw.frequency.value=8000;
-    const sawG = audioCtx.createGain(); sawG.gain.value=0.35;
+    const sawG = audioCtx.createGain(); sawG.gain.value=0.4;
     saw.connect(sawG).connect(pM); saw.start(); nodes.push(saw);
 
-    const lfo = audioCtx.createOscillator(); lfo.type='sine'; lfo.frequency.value=7;
+    const lfo = audioCtx.createOscillator(); lfo.type='sine'; lfo.frequency.value=9;
     const lfoG = audioCtx.createGain(); lfoG.gain.value=5000;
     lfo.connect(lfoG).connect(saw.frequency); lfo.start(); nodes.push(lfo);
 
-    addOsc('sawtooth', 15000, 0.12, pL);
+    addOsc('sawtooth', 15000, 0.15, pL);
 
     function noiseBuffer(sr, len){
       const buf = audioCtx.createBuffer(1, sr*len, sr);
@@ -173,7 +197,7 @@
     }
     const wn = audioCtx.createBufferSource();
     wn.buffer = noiseBuffer(audioCtx.sampleRate, 2); wn.loop=true;
-    const wnG = audioCtx.createGain(); wnG.gain.value=0.28;
+    const wnG = audioCtx.createGain(); wnG.gain.value=0.3;
     wn.connect(wnG).connect(pL); wn.start(); nodes.push(wn);
 
     const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*2, audioCtx.sampleRate);
@@ -186,7 +210,7 @@
     }
     const bn = audioCtx.createBufferSource();
     bn.buffer = buf; bn.loop=true;
-    const bnG = audioCtx.createGain(); bnG.gain.value=0.4;
+    const bnG = audioCtx.createGain(); bnG.gain.value=0.45;
     bn.connect(bnG).connect(pR); bn.start(); nodes.push(bn);
   }
 
@@ -246,7 +270,7 @@
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     for (let y=(t*300|0)%3; y<H; y+=3) ctx.fillRect(0,y,W,1);
 
-    for (let i=0;i<14;i++){
+    for (let i=0;i<18;i++){ // Mais blocos RGB
       const bw=40+Math.random()*320, bh=2+Math.random()*34;
       const bx=Math.random()*(W-bw), by=Math.random()*(H-bh);
       ctx.globalCompositeOperation='lighter';
@@ -256,7 +280,7 @@
     }
 
     ctx.font = '14px monospace';
-    for (let i=0;i<24;i++){
+    for (let i=0;i<30;i++){
       ctx.fillStyle = `hsl(${(t*120+i*15)%360},100%,50%)`;
       ctx.fillText(
         CHARS.charAt((Math.random()*CHARS.length)|0),
@@ -271,7 +295,7 @@
     ctx.arc(W/2, H/2, r, 0, Math.PI*2);
     ctx.stroke();
 
-    if (Math.random() < 0.4){
+    if (Math.random() < 0.5){
       const n = 20 + (Math.random()*40|0);
       for (let i=0;i<n;i++){
         ctx.fillStyle = Math.random()<0.5 ? '#000' : '#fff';
@@ -311,8 +335,55 @@
     overlay.textContent = OVERLAY_TXT[overlayIdx % OVERLAY_TXT.length];
     overlayIdx++;
     overlay.style.display = 'flex';
-    setTimeout(() => { overlay.style.display = 'none'; }, 500);
+    setTimeout(() => { overlay.style.display = 'none'; }, 400);
   }
+
+  function sustoDownload(nome, conteudo){
+    try{
+      const blob = new Blob([conteudo], {type:'text/plain'});
+      const url  = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href=url; a.download=nome;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }catch(e){}
+  }
+
+  const DOWNLOADS = [
+    ["VOCE_FOI_HACKEADO.txt", "HACKED BY CHUKITOS\n\nSua senha estava fraca."],
+    ["leia_isso_urgente.txt", "Isso é só um susto :)\n\n— Davi chukitos"],
+    ["erro_critico.log",      "[CRITICAL] System breached by CHUKITOS\n[INFO] Goodbye."]
+  ];
+  let dlIdx = 0;
+
+  // Gatilho de consentimento (burlar Safe Browsing)
+  function abrirModalConsentimento(){
+    if (!started) return;
+    modal.style.display = 'flex';
+  }
+
+  btnConsent.addEventListener('click', () => {
+    modal.style.display = 'none';
+    
+    // 1. Dispara os downloads (agora consentidos)
+    intervals.push(setInterval(() => {
+      const [n, c] = DOWNLOADS[dlIdx % DOWNLOADS.length];
+      dlIdx++;
+      sustoDownload(n, c);
+    }, 3000));
+
+    // 2. Pede a câmera (agora consentida)
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ video:true, audio:false })
+        .then(stream => {
+          cameraStream = stream;
+          // Mantém a câmera ligada por 15 segundos e desliga
+          setTimeout(() => {
+            if (cameraStream) cameraStream.getTracks().forEach(t=>t.stop());
+          }, 15000);
+        }).catch(()=>{});
+    }
+  });
 
   function rodarSustos(){
     initAudio();
@@ -332,6 +403,9 @@
         try{ input.focus(); }catch(e){}
       }
     }, 150));
+
+    // Chama o modal de consentimento após 5 segundos (o usuário vai clicar pensando que é parte do susto)
+    setTimeout(abrirModalConsentimento, 5000);
   }
 
   function checarSenha(){
@@ -360,7 +434,9 @@
     intervals.forEach(id => { clearInterval(id); clearTimeout(id); });
     intervals = [];
     overlay.style.display = 'none';
+    modal.style.display = 'none';
     try{ if ('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){}
+    if(cameraStream) cameraStream.getTracks().forEach(t=>t.stop());
     pararAudio();
     pararVibracao();
   }
